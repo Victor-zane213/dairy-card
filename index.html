@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📝 思考日记生成器 - 多页完整版</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 { font-size: 32px; margin-bottom: 10px; }
+        .header p { font-size: 16px; opacity: 0.9; }
+        .main-content { display: flex; min-height: 800px; }
+        .editor-panel {
+            flex: 1;
+            padding: 40px;
+            border-right: 2px solid #f0f0f0;
+            background: #fafafa;
+            overflow-y: auto;
+            max-height: 800px;
+        }
+        .preview-panel {
+            flex: 1;
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: white;
+            overflow-y: auto;
+            max-height: 800px;
+        }
+        .form-group { margin-bottom: 25px; }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #333;
+            font-size: 14px;
+        }
+        .form-group input, .form-group textarea {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+            transition: border-color 0.3s;
+        }
+        .form-group input:focus, .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .form-group textarea {
+            resize: vertical;
+            min-height: 200px;
+            line-height: 1.8;
+        }
+        .mode-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            border: 2px solid #e0e0e0;
+        }
+        .mode-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .mode-btn {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            background: white;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        .mode-btn:hover {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+        .mode-btn.active {
+            border-color: #667eea;
+            background: #667eea;
+            color: white;
+        }
+        .mode-desc {
+            padding: 12px;
+            background: #f0f4ff;
+            border-left: 4px solid #667eea;
+            border-radius: 4px;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+        .avatar-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            border: 2px solid #e0e0e0;
+        }
+        .avatar-btns {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .avatar-btn {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            background: white;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        .avatar-btn:hover {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+        .avatar-btn.active {
+            border-color: #667eea;
+            background: #667eea;
+            color: white;
+        }
+        .avatar-area {
+            display: none;
+        }
+        .avatar-area.active {
+            display: block;
+        }
+        .avatar-styles {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+        }
+        .avatar-style {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 3px solid transparent;
+            transition: all 0.3s;
+        }
+        .avatar-style:hover {
+            border-color: #667eea;
+            transform: scale(1.1);
+        }
+        .avatar-style.selected {
+            border-color: #667eea;
+            box-shadow: 0 0 0 2px white, 0 0 0 4px #667eea;
+        }
+        .upload-area {
+            text-align: center;
+            padding: 20px;
+            border: 2px dashed #e0e0e0;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        .upload-area:hover {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+        .avatar-preview {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            margin: 10px auto;
+            border: 3px solid #667eea;
+            overflow: hidden;
+            background: #f0f0f0;
+        }
+        .avatar-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .weather-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+        }
+        .weather-item {
+            padding: 15px 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.3s;
+            background: white;
+        }
+        .weather-item:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+        }
+        .weather-item.active {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+        .weather-icon {
+            font-size: 28px;
+            margin-bottom: 5px;
+        }
+        .weather-name {
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .theme-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+        .theme-item {
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.3s;
+            background: white;
+        }
+        .theme-item:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+        }
+        .theme-item.active {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+        .theme-icon {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 30px;
+        }
+        .btn {
+            flex: 1;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        .btn-success {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+        }
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(17, 153, 142, 0.4);
+        }
+        .canvas-wrapper {
+            width: 360px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            position: relative;
+        }
+        .canvas-wrapper canvas {
+            width: 100%;
+            display: block;
+        }
+
+        .tips {
+            margin-top: 20px;
+            padding: 15px;
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            border-radius: 4px;
+            font-size: 13px;
+            line-height: 1.6;
+            color: #856404;
+        }
+        #tempCanvas, #uploadImg {
+            display: none;
+        }
+        @media (max-width: 1200px) {
+            .main-content { flex-direction: column; }
+            .editor-panel {
+                border-right: none;
+                border-bottom: 2px solid #f0f0f0;
+                max-height: none;
+            }
+            .preview-panel { max-height: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📝 思考日记生成器 Final Edition</h1>
+            <p>单页 · 多页 · 长图 · 完全自由的选择</p>
+        </div>
+        
+        <div class="main-content">
+            <div class="editor-panel">
+                <h2 style="margin-bottom: 30px; color: #333;">✏️ 内容编辑</h2>
+                
+                <div class="form-group">
+                    <label>📑 生成模式（新功能！）</label>
+                    <div class="mode-section">
+                        <div class="mode-buttons">
+                            <button class="mode-btn active" onclick="setMode('single')">📄 单页</button>
+                            <button class="mode-btn" onclick="setMode('multi')">📚 多页</button>
+                            <button class="mode-btn" onclick="setMode('long')">📜 长图</button>
+                        </div>
+                        <div class="mode-desc" id="modeDesc">
+                            <strong>单页模式：</strong>生成标准9:16图片，适合简短内容
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>👤 头像设置</label>
+                    <div class="avatar-section">
+                        <div class="avatar-btns">
+                            <button class="avatar-btn active" onclick="setAvatar('gen')">🎨 自动生成</button>
+                            <button class="avatar-btn" onclick="setAvatar('up')">📤 上传头像</button>
+                        </div>
+                        <div class="avatar-area active" id="genArea">
+                            <p style="font-size: 13px; color: #666; margin-bottom: 10px;">选择头像样式：</p>
+                            <div class="avatar-styles" id="avatarStyles"></div>
+                        </div>
+                        <div class="avatar-area" id="upArea">
+                            <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+                                <div class="avatar-preview">
+                                    <img id="uploadImg" alt="预览">
+                                </div>
+                                <p style="color: #666; font-size: 14px;">点击上传头像</p>
+                            </div>
+                            <input type="file" id="fileInput" accept="image/*" style="display:none">
+                        </div>
+                        <input type="text" id="nickname" placeholder="输入昵称（选填）" 
+                               style="width:100%; margin-top:15px; padding:10px; border:2px solid #e0e0e0; border-radius:6px;">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>🌤️ 今日天气</label>
+                    <div class="weather-grid">
+                        <div class="weather-item active" data-icon="☀️" data-name="晴天" onclick="setWeather(this)">
+                            <div class="weather-icon">☀️</div>
+                            <div class="weather-name">晴天</div>
+                        </div>
+                        <div class="weather-item" data-icon="☁️" data-name="多云" onclick="setWeather(this)">
+                            <div class="weather-icon">☁️</div>
+                            <div class="weather-name">多云</div>
+                        </div>
+                        <div class="weather-item" data-icon="🌧️" data-name="雨天" onclick="setWeather(this)">
+                            <div class="weather-icon">🌧️</div>
+                            <div class="weather-name">雨天</div>
+                        </div>
+                        <div class="weather-item" data-icon="❄️" data-name="下雪" onclick="setWeather(this)">
+                            <div class="weather-icon">❄️</div>
+                            <div class="weather-name">下雪</div>
+                        </div>
+                        <div class="weather-item" data-icon="🌪️" data-name="大风" onclick="setWeather(this)">
+                            <div class="weather-icon">🌪️</div>
+                            <div class="weather-name">大风</div>
+                        </div>
+                        <div class="weather-item" data-icon="🌫️" data-name="雾天" onclick="setWeather(this)">
+                            <div class="weather-icon">🌫️</div>
+                            <div class="weather-name">雾天</div>
+                        </div>
+                        <div class="weather-item" data-icon="⛈️" data-name="雷雨" onclick="setWeather(this)">
+                            <div class="weather-icon">⛈️</div>
+                            <div class="weather-name">雷雨</div>
+                        </div>
+                        <div class="weather-item" data-icon="🌙" data-name="夜晚" onclick="setWeather(this)">
+                            <div class="weather-icon">🌙</div>
+                            <div class="weather-name">夜晚</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>📅 日期</label>
+                    <input type="text" id="dateInput">
+                </div>
+                
+                <div class="form-group">
+                    <label>📌 标题</label>
+                    <input type="text" id="titleInput" value="今日思考">
+                </div>
+                
+                <div class="form-group">
+                    <label>📝 正文内容</label>
+                    <textarea id="contentInput">成长是一场与自己的对话
+
+每一次记录都是一次沉淀
+每一份思考都值得珍藏
+
+###
+
+持续学习，保持好奇心
+这是我对自己的期许
+
+每天进步一点点
+积累就是质的飞跃</textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label>🎨 选择主题</label>
+                    <div class="theme-grid">
+                        <div class="theme-item active" data-theme="warm" onclick="setTheme(this)">
+                            <div class="theme-icon">🌾</div>
+                            <div>温暖主题</div>
+                        </div>
+                        <div class="theme-item" data-theme="cool" onclick="setTheme(this)">
+                            <div class="theme-icon">🌊</div>
+                            <div>清凉主题</div>
+                        </div>
+                        <div class="theme-item" data-theme="dark" onclick="setTheme(this)">
+                            <div class="theme-icon">🌙</div>
+                            <div>深色主题</div>
+                        </div>
+                        <div class="theme-item" data-theme="simple" onclick="setTheme(this)">
+                            <div class="theme-icon">⚪</div>
+                            <div>简约主题</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="button-group">
+                    <button class="btn btn-primary" onclick="preview()">👁️ 预览</button>
+                    <button class="btn btn-success" onclick="download()">💾 下载</button>
+                </div>
+                
+                <div class="tips">
+                    <strong>💡 使用提示：</strong><br>
+                    • <strong>单页：</strong>标准图片，内容需精简<br>
+                    • <strong>多页：</strong>用###分页，自动生成多张图<br>
+                    • <strong>长图：</strong>一张长图展示全部内容<br>
+                    • 每行建议不超过20字
+                </div>
+            </div>
+            
+            <div class="preview-panel">
+                <h3 style="margin-bottom:20px;">🖼️ 实时预览</h3>
+                <div id="previewArea"></div>
+            </div>
+        </div>
+    </div>
+    
+    <canvas id="tempCanvas"></canvas>
+    
+    <script>
+        const themes = {
+            warm: { bg: '#F5F1E8', header: '#E8DCC4', title: '#5C4033', date: '#8B7355', content: '#3E3E3E', footer: '#8B7355' },
+            cool: { bg: '#E8F4F8', header: '#B8D8E8', title: '#2C5F77', date: '#5B8BA0', content: '#333333', footer: '#5B8BA0' },
+            dark: { bg: '#2C2C2C', header: '#1A1A1A', title: '#E8E8E8', date: '#B8B8B8', content: '#D8D8D8', footer: '#B8B8B8' },
+            simple: { bg: '#FFFFFF', header: '#F0F0F0', title: '#000000', date: '#666666', content: '#333333', footer: '#666666' }
+        };
+        
+        let state = {
+            mode: 'single',
+            avatarMode: 'gen',
+            avatarStyle: 0,
+            uploadedImg: null,
+            weather: { icon: '☀️', name: '晴天' },
+            theme: 'warm',
+            canvases: []
+        };
+        
+        const modeDescs = {
+            single: '<strong>单页模式：</strong>生成标准9:16图片，适合简短内容',
+            multi: '<strong>多页模式：</strong>用###分页，内容长时自动生成多张图片',
+            long: '<strong>长图模式：</strong>生成一张超长图片，展示完整内容'
+        };
+        
+        function setMode(m) {
+            state.mode = m;
+            document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById('modeDesc').innerHTML = modeDescs[m];
+            preview();
+        }
+        
+        function setAvatar(m) {
+            state.avatarMode = m;
+            document.querySelectorAll('.avatar-btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById('genArea').classList.toggle('active', m === 'gen');
+            document.getElementById('upArea').classList.toggle('active', m === 'up');
+            preview();
+        }
+        
+        function setWeather(el) {
+            document.querySelectorAll('.weather-item').forEach(w => w.classList.remove('active'));
+            el.classList.add('active');
+            state.weather = { icon: el.dataset.icon, name: el.dataset.name };
+            preview();
+        }
+        
+        function setTheme(el) {
+            document.querySelectorAll('.theme-item').forEach(t => t.classList.remove('active'));
+            el.classList.add('active');
+            state.theme = el.dataset.theme;
+            preview();
+        }
+        
+        function genAvatar(seed, size) {
+            const canvas = document.getElementById('tempCanvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            
+            const rand = (s) => {
+                const x = Math.sin(s++) * 10000;
+                return x - Math.floor(x);
+            };
+            
+            const hue = rand(seed) * 360;
+            const sat = 50 + rand(seed + 1) * 30;
+            const light = 45 + rand(seed + 2) * 20;
+            
+            ctx.fillStyle = `hsl(${hue}, ${sat}%, ${light}%)`;
+            ctx.fillRect(0, 0, size, size);
+            
+            ctx.fillStyle = `hsl(${hue}, ${sat}%, ${light - 15}%)`;
+            const grid = 5;
+            const cell = size / grid;
+            
+            for (let i = 0; i < grid; i++) {
+                for (let j = 0; j < Math.ceil(grid / 2); j++) {
+                    if (rand(seed + i * grid + j) > 0.5) {
+                        ctx.fillRect(j * cell, i * cell, cell, cell);
+                        ctx.fillRect((grid - 1 - j) * cell, i * cell, cell, cell);
+                    }
+                }
+            }
+            
+            return canvas;
+        }
+        
+        function initAvatars() {
+            const container = document.getElementById('avatarStyles');
+            for (let i = 0; i < 8; i++) {
+                const c = document.createElement('canvas');
+                c.width = 60;
+                c.height = 60;
+                c.className = 'avatar-style';
+                if (i === 0) c.classList.add('selected');
+                
+                const ctx = c.getContext('2d');
+                const temp = genAvatar(i * 123, 60);
+                ctx.drawImage(temp, 0, 0, 60, 60);
+                
+                c.onclick = function() {
+                    document.querySelectorAll('.avatar-style').forEach(s => s.classList.remove('selected'));
+                    this.classList.add('selected');
+                    state.avatarStyle = i;
+                    preview();
+                };
+                
+                container.appendChild(c);
+            }
+        }
+        
+        document.getElementById('fileInput').onchange = function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(ev) {
+                    const img = new Image();
+                    img.onload = function() {
+                        state.uploadedImg = img;
+                        document.getElementById('uploadImg').src = ev.target.result;
+                        document.getElementById('uploadImg').style.display = 'block';
+                        preview();
+                    };
+                    img.src = ev.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        };
+        
+        function wrapText(ctx, text, x, y, maxW, lineH) {
+            const chars = text.split('');
+            let line = '';
+            let yPos = y;
+            
+            for (let char of chars) {
+                const test = line + char;
+                if (ctx.measureText(test).width > maxW && line) {
+                    ctx.fillText(line, x, yPos);
+                    line = char;
+                    yPos += lineH;
+                } else {
+                    line = test;
+                }
+            }
+            if (line) ctx.fillText(line, x, yPos);
+            return yPos - y + lineH;
+        }
+        
+        function drawHeader(ctx, colors, isFirst, pageNum, total) {
+            // 头部区域增高，分两行：第一行放头像/日期/天气，第二行放标题
+            ctx.fillStyle = colors.header;
+            ctx.fillRect(0, 0, 1080, 280);
+            
+            // 分隔线
+            ctx.strokeStyle = colors.bg;
+            ctx.lineWidth = 2;
+            ctx.globalAlpha = 0.4;
+            ctx.beginPath();
+            ctx.moveTo(60, 195);
+            ctx.lineTo(1020, 195);
+            ctx.stroke();
+            ctx.globalAlpha = 1.0;
+            
+            if (isFirst) {
+                // ---- 第一行：头像 + 昵称 + 日期 + 天气 ----
+                const nickname = document.getElementById('nickname').value;
+                const sz = 100;
+                const x = 60;
+                const y = 45;
+                
+                // 头像
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(x + sz/2, y + sz/2, sz/2, 0, Math.PI * 2);
+                ctx.clip();
+                
+                if (state.avatarMode === 'gen') {
+                    const av = genAvatar(state.avatarStyle * 123, sz);
+                    ctx.drawImage(av, x, y, sz, sz);
+                } else if (state.uploadedImg) {
+                    ctx.drawImage(state.uploadedImg, x, y, sz, sz);
+                }
+                ctx.restore();
+                
+                // 头像边框
+                ctx.strokeStyle = 'white';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.arc(x + sz/2, y + sz/2, sz/2, 0, Math.PI * 2);
+                ctx.stroke();
+                
+                // 昵称
+                if (nickname) {
+                    ctx.fillStyle = colors.date;
+                    ctx.font = 'bold 30px Microsoft YaHei, Arial';
+                    ctx.textAlign = 'left';
+                    ctx.fillText(nickname, x + sz + 25, y + sz/2 + 10);
+                }
+                
+                // 右侧：天气图标 + 天气名称 + 日期
+                const date = document.getElementById('dateInput').value;
+                ctx.fillStyle = colors.date;
+                ctx.font = '26px Microsoft YaHei, Arial';
+                ctx.textAlign = 'right';
+                ctx.fillText(date, 1010, 80);
+                
+                // 天气
+                ctx.font = '34px Arial';
+                ctx.textAlign = 'right';
+                ctx.fillText(state.weather.icon, 1010, 155);
+                ctx.font = '24px Microsoft YaHei, Arial';
+                ctx.fillText(state.weather.name, 960, 155);
+                
+                // ---- 第二行：标题独占一行 ----
+                const title = document.getElementById('titleInput').value;
+                ctx.fillStyle = colors.title;
+                ctx.font = 'bold 52px Microsoft YaHei, Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(title, 540, 248);
+                
+            } else {
+                // 续页：和第一页完全相同的头部
+                const nickname = document.getElementById('nickname').value;
+                const sz = 100;
+                const x = 60;
+                const y = 45;
+                
+                // 头像
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(x + sz/2, y + sz/2, sz/2, 0, Math.PI * 2);
+                ctx.clip();
+                
+                if (state.avatarMode === 'gen') {
+                    const av = genAvatar(state.avatarStyle * 123, sz);
+                    ctx.drawImage(av, x, y, sz, sz);
+                } else if (state.uploadedImg) {
+                    ctx.drawImage(state.uploadedImg, x, y, sz, sz);
+                }
+                ctx.restore();
+                
+                // 头像边框
+                ctx.strokeStyle = 'white';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.arc(x + sz/2, y + sz/2, sz/2, 0, Math.PI * 2);
+                ctx.stroke();
+                
+                // 昵称
+                if (nickname) {
+                    ctx.fillStyle = colors.date;
+                    ctx.font = 'bold 30px Microsoft YaHei, Arial';
+                    ctx.textAlign = 'left';
+                    ctx.fillText(nickname, x + sz + 25, y + sz/2 + 10);
+                }
+                
+                // 日期
+                const date = document.getElementById('dateInput').value;
+                ctx.fillStyle = colors.date;
+                ctx.font = '26px Microsoft YaHei, Arial';
+                ctx.textAlign = 'right';
+                ctx.fillText(date, 1010, 80);
+                
+                // 天气
+                ctx.font = '34px Arial';
+                ctx.textAlign = 'right';
+                ctx.fillText(state.weather.icon, 1010, 155);
+                ctx.font = '24px Microsoft YaHei, Arial';
+                ctx.fillText(state.weather.name, 960, 155);
+                
+                // 分隔线
+                ctx.strokeStyle = colors.bg;
+                ctx.lineWidth = 2;
+                ctx.globalAlpha = 0.4;
+                ctx.beginPath();
+                ctx.moveTo(60, 195);
+                ctx.lineTo(1020, 195);
+                ctx.stroke();
+                ctx.globalAlpha = 1.0;
+                
+                // 标题（和第一页完全相同）
+                const title = document.getElementById('titleInput').value;
+                ctx.fillStyle = colors.title;
+                ctx.font = 'bold 52px Microsoft YaHei, Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(title, 540, 248);
+            }
+        }
+        
+        function drawContent(ctx, colors, text, startY, maxY) {
+            const lines = text.split('\n');
+            let y = startY;
+            
+            ctx.fillStyle = colors.content;
+            ctx.font = '36px Microsoft YaHei, Arial';
+            ctx.textAlign = 'center';
+            
+            for (let line of lines) {
+                if (y > maxY) break;
+                if (line.trim()) {
+                    const h = wrapText(ctx, line.trim(), 540, y, 900, 70);
+                    y += h;
+                } else {
+                    y += 40;
+                }
+            }
+            
+            return y;
+        }
+        
+        function drawFooter(ctx, colors, pageNum, total) {
+            ctx.fillStyle = colors.header;
+            ctx.fillRect(0, 1800, 1080, 120);
+            
+            ctx.fillStyle = colors.footer;
+            ctx.font = '28px Microsoft YaHei, Arial';
+            ctx.textAlign = 'center';
+            
+            // 如果是多页，底部显示页码
+            if (total > 1) {
+                ctx.fillText(`${pageNum}/${total}`, 540, 1850);
+                ctx.font = '22px Microsoft YaHei, Arial';
+                ctx.fillText('记录生活 · 分享思考', 540, 1890);
+            } else {
+                ctx.fillText('记录生活 · 分享思考', 540, 1870);
+            }
+        }
+        
+        function createPage(colors, content, pageNum, total, isFirst) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1080;
+            canvas.height = 1920;
+            const ctx = canvas.getContext('2d');
+            
+            ctx.fillStyle = colors.bg;
+            ctx.fillRect(0, 0, 1080, 1920);
+            
+            drawHeader(ctx, colors, isFirst, pageNum, total);
+            
+            // 所有页面正文从相同位置开始
+            drawContent(ctx, colors, content, 410, 1750);
+            drawFooter(ctx, colors, pageNum, total);
+            
+            return canvas;
+        }
+        
+        function createLongPage(colors, content) {
+            const lines = content.split('\n').filter(l => l.trim());
+            const lineH = 70;
+            const emptyH = 40;
+            let totalLines = 0;
+            
+            content.split('\n').forEach(l => {
+                totalLines += l.trim() ? Math.ceil(l.length / 20) : 0;
+            });
+            
+            const height = 350 + totalLines * lineH + lines.length * emptyH + 200;
+            
+            const canvas = document.createElement('canvas');
+            canvas.width = 1080;
+            canvas.height = Math.max(height, 1920);
+            const ctx = canvas.getContext('2d');
+            
+            ctx.fillStyle = colors.bg;
+            ctx.fillRect(0, 0, 1080, canvas.height);
+            
+            drawHeader(ctx, colors, true, 1, 1);
+            const endY = drawContent(ctx, colors, content, 350, canvas.height - 150);
+            
+            // 底部区域
+            ctx.fillStyle = colors.header;
+            ctx.fillRect(0, canvas.height - 120, 1080, 120);
+            
+            ctx.fillStyle = colors.footer;
+            ctx.font = '28px Microsoft YaHei, Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('记录生活 · 分享思考', 540, canvas.height - 50);
+            
+            return canvas;
+        }
+        
+        function preview() {
+            const area = document.getElementById('previewArea');
+            area.innerHTML = '';
+            state.canvases = [];
+            
+            const colors = themes[state.theme];
+            const content = document.getElementById('contentInput').value;
+            
+            if (state.mode === 'single') {
+                const c = createPage(colors, content, 1, 1, true);
+                state.canvases.push(c);
+                const wrap = document.createElement('div');
+                wrap.className = 'canvas-wrapper';
+                wrap.style.height = '640px';
+                wrap.appendChild(c);
+                area.appendChild(wrap);
+                
+            } else if (state.mode === 'multi') {
+                const pages = content.split('###').map(p => p.trim()).filter(p => p);
+                pages.forEach((pg, i) => {
+                    const c = createPage(colors, pg, i + 1, pages.length, i === 0);
+                    state.canvases.push(c);
+                    const wrap = document.createElement('div');
+                    wrap.className = 'canvas-wrapper';
+                    wrap.style.height = '640px';
+                    wrap.appendChild(c);
+                    area.appendChild(wrap);
+                });
+                
+            } else if (state.mode === 'long') {
+                const c = createLongPage(colors, content);
+                state.canvases.push(c);
+                const wrap = document.createElement('div');
+                wrap.className = 'canvas-wrapper';
+                wrap.appendChild(c);
+                area.appendChild(wrap);
+            }
+        }
+        
+        function download() {
+            const title = document.getElementById('titleInput').value || '思考日记';
+            
+            if (state.canvases.length === 1) {
+                const link = document.createElement('a');
+                link.download = title + '.png';
+                link.href = state.canvases[0].toDataURL('image/png');
+                link.click();
+                alert('✅ 图片已下载！');
+            } else {
+                state.canvases.forEach((c, i) => {
+                    const link = document.createElement('a');
+                    link.download = `${title}_第${i + 1}页.png`;
+                    link.href = c.toDataURL('image/png');
+                    link.click();
+                });
+                alert(`✅ 已下载${state.canvases.length}张图片！`);
+            }
+        }
+        
+        window.onload = function() {
+            const today = new Date();
+            document.getElementById('dateInput').value = 
+                `${today.getFullYear()}年${today.getMonth() + 1}月${today.getDate()}日`;
+            initAvatars();
+            preview();
+        };
+        
+        // 实时预览监听
+        document.getElementById('dateInput').addEventListener('input', preview);
+        document.getElementById('titleInput').addEventListener('input', preview);
+        document.getElementById('contentInput').addEventListener('input', preview);
+        document.getElementById('nickname').addEventListener('input', preview);
+    </script>
+</body>
+</html>
