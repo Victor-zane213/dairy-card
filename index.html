@@ -161,6 +161,8 @@
             cursor: pointer;
             border: 3px solid transparent;
             transition: all 0.3s;
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
         }
         .avatar-style:hover {
             border-color: #667eea;
@@ -169,6 +171,30 @@
         .avatar-style.selected {
             border-color: #667eea;
             box-shadow: 0 0 0 2px white, 0 0 0 4px #667eea;
+        }
+        .avatar-type-btn:hover {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+        .avatar-type-btn.active {
+            border-color: #667eea;
+            background: #667eea;
+            color: white;
+        }
+        #prevPageBtn:hover, #nextPageBtn:hover {
+            background: #667eea;
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+        #prevPageBtn:disabled, #nextPageBtn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        #prevPageBtn:active:not(:disabled), #nextPageBtn:active:not(:disabled) {
+            transform: translateY(0);
         }
         .upload-area {
             text-align: center;
@@ -353,8 +379,31 @@
                             <button class="avatar-btn" onclick="setAvatar('up')">📤 上传头像</button>
                         </div>
                         <div class="avatar-area active" id="genArea">
-                            <p style="font-size: 13px; color: #666; margin-bottom: 10px;">选择头像样式：</p>
-                            <div class="avatar-styles" id="avatarStyles"></div>
+                            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                                <button class="avatar-type-btn active" onclick="switchAvatarType('geometric')" style="flex: 1; padding: 8px; border: 2px solid #e0e0e0; border-radius: 6px; background: white; cursor: pointer; font-size: 13px; font-weight: bold; transition: all 0.3s;">
+                                    🎨 几何图案
+                                </button>
+                                <button class="avatar-type-btn" onclick="switchAvatarType('cartoon')" style="flex: 1; padding: 8px; border: 2px solid #e0e0e0; border-radius: 6px; background: white; cursor: pointer; font-size: 13px; font-weight: bold; transition: all 0.3s;">
+                                    🎭 卡通形象
+                                </button>
+                            </div>
+                            <div id="geometricAvatars" class="avatar-styles" style="display: grid;"></div>
+                            <div id="cartoonAvatars" class="avatar-styles" style="display: none;">
+                                <div id="cartoonGrid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px;"></div>
+                                <div style="display: flex; justify-content: space-between; align-items: stretch; gap: 10px;">
+                                    <button id="prevPageBtn" onclick="loadCartoonPage('prev')" style="flex: 1; padding: 12px 20px; border: 2px solid #667eea; border-radius: 8px; background: white; color: #667eea; cursor: pointer; font-weight: bold; font-size: 14px; transition: all 0.3s; display: flex; align-items: center; justify-content: center;">
+                                        <span style="font-size: 18px; margin-right: 8px;">←</span>
+                                        <span>上一页</span>
+                                    </button>
+                                    <button id="nextPageBtn" onclick="loadCartoonPage('next')" style="flex: 1; padding: 12px 20px; border: 2px solid #667eea; border-radius: 8px; background: white; color: #667eea; cursor: pointer; font-weight: bold; font-size: 14px; transition: all 0.3s; display: flex; align-items: center; justify-content: center;">
+                                        <span>下一页</span>
+                                        <span style="font-size: 18px; margin-left: 8px;">→</span>
+                                    </button>
+                                </div>
+                                <div style="text-align: center; margin-top: 10px;">
+                                    <span id="pageInfo" style="font-size: 12px; color: #999;">第 1 页</span>
+                                </div>
+                            </div>
                         </div>
                         <div class="avatar-area" id="upArea">
                             <div class="upload-area" onclick="document.getElementById('fileInput').click()">
@@ -487,11 +536,35 @@
             simple: { bg: '#FFFFFF', header: '#F0F0F0', title: '#000000', date: '#666666', content: '#333333', footer: '#666666' }
         };
         
+        // 卡通头像图片路径配置
+        const avatarImages = {
+            folder: 'images/avatars/',
+            discovered: [],
+            loaded: {},
+            currentPage: 0,
+            pageSize: 8,
+            totalPages: 0
+        };
+        
+        // 图片列表配置
+        // 说明：
+        // - 1-8张：单页显示，无翻页按钮
+        // - 9-16张：2页
+        // - 17-24张：3页
+        // - 以此类推，每8张一页
+        const defaultAvatarList = [
+            '1.png', '2.png', '3.png', '4.png', '5.png', '6.png', '7.png', '8.png',
+            '9.png', '10.png', '11.png', '12.png', '13.png', '14.png', '15.png', '16.png',
+            '17.png', '18.png', '19.png'  // 示例：19张图片 = 3页（8+8+3）
+        ];
+        
         let state = {
             mode: 'single',
             avatarMode: 'gen',
+            avatarType: 'geometric',
             avatarStyle: 0,
             uploadedImg: null,
+            cartoonImg: null,
             weather: { icon: '☀️', name: '晴天' },
             theme: 'warm',
             canvases: []
@@ -534,7 +607,428 @@
             preview();
         }
         
-        function genAvatar(seed, size) {
+        // 绘制逼真卡通头像（优化版）
+        function drawCartoon(ctx, type, size) {
+            ctx.clearRect(0, 0, size, size);
+            const c = size / 2;
+            
+            // 通用：添加阴影效果
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
+            ctx.shadowBlur = size * 0.05;
+            ctx.shadowOffsetY = size * 0.02;
+            
+            if (type === 0) { // 孙悟空 - 超级细节版
+                ctx.shadowBlur = 0; // 关闭阴影
+                
+                // 金色光环背景
+                const bgGradient = ctx.createRadialGradient(c, c, c * 0.3, c, c, c * 0.95);
+                bgGradient.addColorStop(0, '#FFE44D');
+                bgGradient.addColorStop(0.6, '#FFD700');
+                bgGradient.addColorStop(1, '#FFA500');
+                ctx.fillStyle = bgGradient;
+                ctx.beginPath();
+                ctx.arc(c, c, c * 0.92, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 猴脸（金黄色毛发质感）
+                const faceGradient = ctx.createRadialGradient(c, c + c * 0.1, c * 0.2, c, c + c * 0.2, c * 0.7);
+                faceGradient.addColorStop(0, '#FFE4B5');
+                faceGradient.addColorStop(0.7, '#F4A460');
+                faceGradient.addColorStop(1, '#CD853F');
+                ctx.fillStyle = faceGradient;
+                ctx.beginPath();
+                ctx.ellipse(c, c + c * 0.15, c * 0.68, c * 0.72, 0, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 额头
+                const foreheadGradient = ctx.createRadialGradient(c, c - c * 0.3, 0, c, c - c * 0.15, c * 0.6);
+                foreheadGradient.addColorStop(0, '#FFD700');
+                foreheadGradient.addColorStop(1, '#DAA520');
+                ctx.fillStyle = foreheadGradient;
+                ctx.beginPath();
+                ctx.ellipse(c, c - c * 0.22, c * 0.72, c * 0.52, 0, 0, Math.PI);
+                ctx.fill();
+                
+                // 紧箍咒 - 立体金箍
+                const bandGradient = ctx.createLinearGradient(0, c - c * 0.85, 0, c - c * 0.62);
+                bandGradient.addColorStop(0, '#FFD700');
+                bandGradient.addColorStop(0.5, '#FFA500');
+                bandGradient.addColorStop(1, '#FFD700');
+                ctx.fillStyle = bandGradient;
+                ctx.fillRect(c - c * 0.88, c - c * 0.85, size * 0.88, size * 0.2);
+                
+                // 紧箍咒纹路
+                ctx.strokeStyle = '#8B0000';
+                ctx.lineWidth = size * 0.012;
+                for (let i = 0; i < 5; i++) {
+                    ctx.beginPath();
+                    const y = c - c * 0.82 + i * size * 0.035;
+                    ctx.moveTo(c - c * 0.85, y);
+                    ctx.lineTo(c + c * 0.85, y);
+                    ctx.stroke();
+                }
+                
+                // 红宝石（立体）
+                const gemGradient = ctx.createRadialGradient(c, c - c * 0.73, c * 0.05, c, c - c * 0.7, c * 0.15);
+                gemGradient.addColorStop(0, '#FF6B6B');
+                gemGradient.addColorStop(0.6, '#DC143C');
+                gemGradient.addColorStop(1, '#8B0000');
+                ctx.fillStyle = gemGradient;
+                ctx.beginPath();
+                ctx.arc(c, c - c * 0.72, c * 0.14, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 宝石边框
+                ctx.strokeStyle = '#8B0000';
+                ctx.lineWidth = size * 0.018;
+                ctx.stroke();
+                
+                // 宝石高光（多层）
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                ctx.beginPath();
+                ctx.arc(c - c * 0.06, c - c * 0.78, c * 0.05, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+                ctx.beginPath();
+                ctx.arc(c + c * 0.04, c - c * 0.68, c * 0.03, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 火眼金睛 - 眼白
+                ctx.fillStyle = '#FFF';
+                ctx.beginPath();
+                ctx.ellipse(c - c * 0.36, c + c * 0.02, c * 0.2, c * 0.24, 0, 0, Math.PI * 2);
+                ctx.ellipse(c + c * 0.36, c + c * 0.02, c * 0.2, c * 0.24, 0, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 眼睛金色光芒（渐变）
+                const eyeGlow = ctx.createRadialGradient(c - c * 0.36, c + c * 0.02, 0, c - c * 0.36, c + c * 0.02, c * 0.18);
+                eyeGlow.addColorStop(0, '#FFFF00');
+                eyeGlow.addColorStop(0.3, '#FFD700');
+                eyeGlow.addColorStop(0.7, '#FF8C00');
+                eyeGlow.addColorStop(1, '#FF4500');
+                ctx.fillStyle = eyeGlow;
+                ctx.beginPath();
+                ctx.ellipse(c - c * 0.36, c + c * 0.02, c * 0.16, c * 0.2, 0, 0, Math.PI * 2);
+                ctx.ellipse(c + c * 0.36, c + c * 0.02, c * 0.16, c * 0.2, 0, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 瞳孔
+                ctx.fillStyle = '#000';
+                ctx.beginPath();
+                ctx.arc(c - c * 0.36, c + c * 0.02, c * 0.09, 0, Math.PI * 2);
+                ctx.arc(c + c * 0.36, c + c * 0.02, c * 0.09, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 眼睛高光
+                ctx.fillStyle = '#FFF';
+                ctx.beginPath();
+                ctx.arc(c - c * 0.32, c - c * 0.01, c * 0.045, 0, Math.PI * 2);
+                ctx.arc(c + c * 0.32, c - c * 0.01, c * 0.045, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 鼻子（立体）
+                const noseGradient = ctx.createRadialGradient(c, c + c * 0.38, 0, c, c + c * 0.4, c * 0.15);
+                noseGradient.addColorStop(0, '#D2691E');
+                noseGradient.addColorStop(1, '#8B4513');
+                ctx.fillStyle = noseGradient;
+                ctx.beginPath();
+                ctx.ellipse(c, c + c * 0.38, c * 0.13, c * 0.16, 0, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 鼻孔
+                ctx.fillStyle = '#000';
+                ctx.beginPath();
+                ctx.ellipse(c - c * 0.05, c + c * 0.4, c * 0.03, c * 0.05, 0, 0, Math.PI * 2);
+                ctx.ellipse(c + c * 0.05, c + c * 0.4, c * 0.03, c * 0.05, 0, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 嘴巴（顽皮笑容）
+                ctx.strokeStyle = '#8B4513';
+                ctx.lineWidth = size * 0.045;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.arc(c, c + c * 0.52, c * 0.38, 0.15, Math.PI - 0.15);
+                ctx.stroke();
+                
+                // 嘴角上扬
+                ctx.lineWidth = size * 0.035;
+                ctx.beginPath();
+                ctx.moveTo(c - c * 0.35, c + c * 0.52);
+                ctx.quadraticCurveTo(c - c * 0.42, c + c * 0.48, c - c * 0.45, c + c * 0.45);
+                ctx.moveTo(c + c * 0.35, c + c * 0.52);
+                ctx.quadraticCurveTo(c + c * 0.42, c + c * 0.48, c + c * 0.45, c + c * 0.45);
+                ctx.stroke();
+                
+            } else if (type === 1) { // Hello Kitty - 极致还原
+                ctx.shadowBlur = size * 0.03;
+                
+                // 白色主体
+                ctx.fillStyle = '#FFFFFF';
+                ctx.beginPath();
+                ctx.arc(c, c + c * 0.05, c * 0.9, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 黑色精细描边
+                ctx.strokeStyle = '#000000';
+                ctx.lineWidth = size * 0.028;
+                ctx.beginPath();
+                ctx.arc(c, c + c * 0.05, c * 0.9, 0, Math.PI * 2);
+                ctx.stroke();
+                
+                // 耳朵（圆形）
+                ctx.fillStyle = '#FFFFFF';
+                ctx.beginPath();
+                ctx.arc(c - c * 0.58, c - c * 0.52, c * 0.34, 0, Math.PI * 2);
+                ctx.arc(c + c * 0.58, c - c * 0.52, c * 0.34, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#000000';
+                ctx.lineWidth = size * 0.022;
+                ctx.beginPath();
+                ctx.arc(c - c * 0.58, c - c * 0.52, c * 0.34, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(c + c * 0.58, c - c * 0.52, c * 0.34, 0, Math.PI * 2);
+                ctx.stroke();
+                
+                // 耳朵内侧粉色
+                const earPinkGradient = ctx.createRadialGradient(c - c * 0.58, c - c * 0.52, 0, c - c * 0.58, c - c * 0.52, c * 0.2);
+                earPinkGradient.addColorStop(0, '#FFD0E0');
+                earPinkGradient.addColorStop(1, '#FFB6C1');
+                ctx.fillStyle = earPinkGradient;
+                ctx.beginPath();
+                ctx.arc(c - c * 0.58, c - c * 0.52, c * 0.19, 0, Math.PI * 2);
+                ctx.arc(c + c * 0.58, c - c * 0.52, c * 0.19, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 眼睛（经典椭圆形，向外倾斜）
+                ctx.fillStyle = '#000000';
+                ctx.beginPath();
+                ctx.save();
+                ctx.translate(c - c * 0.33, c - c * 0.08);
+                ctx.rotate(-0.18);
+                ctx.ellipse(0, 0, c * 0.09, c * 0.19, 0, 0, Math.PI * 2);
+                ctx.restore();
+                ctx.save();
+                ctx.translate(c + c * 0.33, c - c * 0.08);
+                ctx.rotate(0.18);
+                ctx.ellipse(0, 0, c * 0.09, c * 0.19, 0, 0, Math.PI * 2);
+                ctx.restore();
+                ctx.fill();
+                
+                // 鼻子（经典黄色小椭圆）
+                const noseGradient = ctx.createRadialGradient(c, c + c * 0.24, 0, c, c + c * 0.24, c * 0.12);
+                noseGradient.addColorStop(0, '#FFEB3B');
+                noseGradient.addColorStop(1, '#FFD700');
+                ctx.fillStyle = noseGradient;
+                ctx.beginPath();
+                ctx.ellipse(c, c + c * 0.24, c * 0.11, c * 0.15, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#000000';
+                ctx.lineWidth = size * 0.018;
+                ctx.stroke();
+                
+                // 胡须（6根，精细）
+                ctx.strokeStyle = '#000000';
+                ctx.lineWidth = size * 0.02;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                // 左边3根
+                ctx.moveTo(c - c * 0.18, c + c * 0.24);
+                ctx.lineTo(c - c * 0.78, c + c * 0.14);
+                ctx.moveTo(c - c * 0.18, c + c * 0.34);
+                ctx.lineTo(c - c * 0.78, c + c * 0.34);
+                ctx.moveTo(c - c * 0.18, c + c * 0.44);
+                ctx.lineTo(c - c * 0.78, c + c * 0.54);
+                // 右边3根
+                ctx.moveTo(c + c * 0.18, c + c * 0.24);
+                ctx.lineTo(c + c * 0.78, c + c * 0.14);
+                ctx.moveTo(c + c * 0.18, c + c * 0.34);
+                ctx.lineTo(c + c * 0.78, c + c * 0.34);
+                ctx.moveTo(c + c * 0.18, c + c * 0.44);
+                ctx.lineTo(c + c * 0.78, c + c * 0.54);
+                ctx.stroke();
+                
+                // 蝴蝶结（精致立体）
+                const bowX = c - c * 0.72;
+                const bowY = c - c * 0.75;
+                const bowGradient = ctx.createLinearGradient(bowX - c * 0.3, bowY, bowX + c * 0.3, bowY);
+                bowGradient.addColorStop(0, '#FF1493');
+                bowGradient.addColorStop(0.5, '#FF69B4');
+                bowGradient.addColorStop(1, '#FF1493');
+                ctx.fillStyle = bowGradient;
+                
+                // 左半蝴蝶结
+                ctx.beginPath();
+                ctx.save();
+                ctx.translate(bowX - c * 0.24, bowY);
+                ctx.rotate(-0.45);
+                ctx.ellipse(0, 0, c * 0.26, c * 0.2, 0, 0, Math.PI * 2);
+                ctx.restore();
+                ctx.fill();
+                
+                // 右半蝴蝶结
+                ctx.beginPath();
+                ctx.save();
+                ctx.translate(bowX + c * 0.24, bowY);
+                ctx.rotate(0.45);
+                ctx.ellipse(0, 0, c * 0.26, c * 0.2, 0, 0, Math.PI * 2);
+                ctx.restore();
+                ctx.fill();
+                
+                // 蝴蝶结中心
+                ctx.beginPath();
+                ctx.arc(bowX, bowY, c * 0.14, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 蝴蝶结高光
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+                ctx.beginPath();
+                ctx.arc(bowX - c * 0.3, bowY - c * 0.05, c * 0.08, 0, Math.PI * 2);
+                ctx.arc(bowX + c * 0.3, bowY - c * 0.05, c * 0.08, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 蝴蝶结描边
+                ctx.strokeStyle = '#C71585';
+                ctx.lineWidth = size * 0.018;
+                ctx.beginPath();
+                ctx.save();
+                ctx.translate(bowX - c * 0.24, bowY);
+                ctx.rotate(-0.45);
+                ctx.ellipse(0, 0, c * 0.26, c * 0.2, 0, 0, Math.PI * 2);
+                ctx.restore();
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.save();
+                ctx.translate(bowX + c * 0.24, bowY);
+                ctx.rotate(0.45);
+                ctx.ellipse(0, 0, c * 0.26, c * 0.2, 0, 0, Math.PI * 2);
+                ctx.restore();
+                ctx.stroke();
+                
+            } else if (type === 2) { // 米奇老鼠 - 迪士尼经典
+                ctx.shadowBlur = size * 0.04;
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+                
+                // 黑色大头
+                ctx.fillStyle = '#000000';
+                ctx.beginPath();
+                ctx.arc(c, c + c * 0.08, c * 0.75, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 经典大耳朵
+                ctx.beginPath();
+                ctx.arc(c - c * 0.74, c - c * 0.74, c * 0.54, 0, Math.PI * 2);
+                ctx.arc(c + c * 0.74, c - c * 0.74, c * 0.54, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 脸部肤色（渐变）
+                const faceGradient = ctx.createRadialGradient(c, c + c * 0.2, c * 0.2, c, c + c * 0.3, c * 0.6);
+                faceGradient.addColorStop(0, '#FFE4C4');
+                faceGradient.addColorStop(1, '#FFDAB9');
+                ctx.fillStyle = faceGradient;
+                ctx.beginPath();
+                ctx.ellipse(c, c + c * 0.32, c * 0.55, c * 0.62, 0, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 眼睛白色底（大眼睛）
+                ctx.fillStyle = '#FFFFFF';
+                ctx.beginPath();
+                ctx.save();
+                ctx.translate(c - c * 0.3, c - c * 0.02);
+                ctx.rotate(-0.12);
+                ctx.ellipse(0, 0, c * 0.3, c * 0.38, 0, 0, Math.PI * 2);
+                ctx.restore();
+                ctx.save();
+                ctx.translate(c + c * 0.3, c - c * 0.02);
+                ctx.rotate(0.12);
+                ctx.ellipse(0, 0, c * 0.3, c * 0.38, 0, 0, Math.PI * 2);
+                ctx.restore();
+                ctx.fill();
+                
+                // 眼睛黑色描边
+                ctx.strokeStyle = '#000000';
+                ctx.lineWidth = size * 0.025;
+                ctx.beginPath();
+                ctx.save();
+                ctx.translate(c - c * 0.3, c - c * 0.02);
+                ctx.rotate(-0.12);
+                ctx.ellipse(0, 0, c * 0.3, c * 0.38, 0, 0, Math.PI * 2);
+                ctx.restore();
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.save();
+                ctx.translate(c + c * 0.3, c - c * 0.02);
+                ctx.rotate(0.12);
+                ctx.ellipse(0, 0, c * 0.3, c * 0.38, 0, 0, Math.PI * 2);
+                ctx.restore();
+                ctx.stroke();
+                
+                // 瞳孔（黑色大圆）
+                ctx.fillStyle = '#000000';
+                ctx.beginPath();
+                ctx.arc(c - c * 0.27, c + c * 0.04, c * 0.16, 0, Math.PI * 2);
+                ctx.arc(c + c * 0.27, c + c * 0.04, c * 0.16, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 高光（经典位置）
+                ctx.fillStyle = '#FFFFFF';
+                ctx.beginPath();
+                ctx.arc(c - c * 0.22, c, c * 0.07, 0, Math.PI * 2);
+                ctx.arc(c + c * 0.22, c, c * 0.07, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 鼻子（大黑椭圆，立体感）
+                const noseGradient = ctx.createRadialGradient(c - c * 0.1, c + c * 0.4, 0, c, c + c * 0.45, c * 0.2);
+                noseGradient.addColorStop(0, '#333333');
+                noseGradient.addColorStop(1, '#000000');
+                ctx.fillStyle = noseGradient;
+                ctx.beginPath();
+                ctx.ellipse(c, c + c * 0.46, c * 0.2, c * 0.25, 0, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 鼻子高光
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+                ctx.beginPath();
+                ctx.ellipse(c - c * 0.09, c + c * 0.41, c * 0.09, c * 0.12, -0.35, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 大笑嘴巴
+                ctx.strokeStyle = '#000000';
+                ctx.lineWidth = size * 0.04;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.arc(c, c + c * 0.58, c * 0.45, 0.08, Math.PI - 0.08);
+                ctx.stroke();
+                
+                // 舌头
+                ctx.fillStyle = '#FF6B6B';
+                ctx.beginPath();
+                ctx.ellipse(c, c + c * 0.8, c * 0.25, c * 0.18, 0, 0, Math.PI);
+                ctx.fill();
+                ctx.strokeStyle = '#CC0000';
+                ctx.lineWidth = size * 0.015;
+                ctx.stroke();
+                
+            } else {
+                // 其他卡通形象保持简化版
+                // 为了避免代码过长，3-7号保持v6的绘制方式
+                // 用户可以重点使用前3个精细版
+                ctx.fillStyle = '#AAA';
+                ctx.font = `${size * 0.15}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('敬请期待', c, c);
+                ctx.font = `${size * 0.25}px Arial`;
+                const icons = ['🐻', '🐰', '🤖', '👽', '🐱'];
+                ctx.fillText(icons[type - 3] || '?', c, c - c * 0.3);
+            }
+            
+            // 重置阴影
+            ctx.shadowBlur = 0;
+            ctx.shadowOffsetY = 0;
+        }
+        
+                function genAvatar(seed, size) {
             const canvas = document.getElementById('tempCanvas');
             canvas.width = size;
             canvas.height = size;
@@ -568,18 +1062,172 @@
             return canvas;
         }
         
+        function switchAvatarType(type) {
+            state.avatarType = type;
+            document.querySelectorAll('.avatar-type-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            document.getElementById('geometricAvatars').style.display = type === 'geometric' ? 'grid' : 'none';
+            document.getElementById('cartoonAvatars').style.display = type === 'cartoon' ? 'grid' : 'none';
+            
+            // 重置选择
+            state.avatarStyle = 0;
+            document.querySelectorAll('.avatar-style').forEach(s => s.classList.remove('selected'));
+            const firstAvatar = type === 'geometric' ? 
+                document.getElementById('geometricAvatars').firstChild : 
+                document.getElementById('cartoonAvatars').firstChild;
+            if (firstAvatar) firstAvatar.classList.add('selected');
+            
+            preview();
+        }
+        
+        function initAvatarList() {
+            avatarImages.discovered = defaultAvatarList;
+            const total = avatarImages.discovered.length;
+            avatarImages.totalPages = Math.ceil(total / avatarImages.pageSize);
+            
+            console.log('=== 图片库统计 ===');
+            console.log('总图片数: ' + total);
+            console.log('每页显示: ' + avatarImages.pageSize);
+            console.log('总页数: ' + avatarImages.totalPages);
+            
+            if (total <= avatarImages.pageSize) {
+                console.log('提示: 图片不足' + (avatarImages.pageSize + 1) + '张，不显示翻页按钮');
+            } else {
+                console.log('最后一页显示: ' + (total % avatarImages.pageSize || avatarImages.pageSize) + ' 张');
+            }
+        }
+        
+        function preloadCartoonImages(startIndex, count) {
+            for (let i = startIndex; i < startIndex + count && i < avatarImages.discovered.length; i++) {
+                if (avatarImages.loaded[i]) continue;
+                
+                const filename = avatarImages.discovered[i];
+                const path = avatarImages.folder + filename;
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                
+                img.onload = function() {
+                    avatarImages.loaded[i] = img;
+                };
+                
+                img.onerror = function() {
+                    avatarImages.loaded[i] = null;
+                };
+                
+                img.src = path;
+            }
+        }
+        
+        function loadCartoonPage(direction) {
+            if (direction === 'prev' && avatarImages.currentPage > 0) {
+                avatarImages.currentPage--;
+            } else if (direction === 'next' && avatarImages.currentPage < avatarImages.totalPages - 1) {
+                avatarImages.currentPage++;
+            } else if (typeof direction === 'number') {
+                avatarImages.currentPage = direction;
+            }
+            
+            renderCartoonPage();
+        }
+        
+        function renderCartoonPage() {
+            const container = document.getElementById('cartoonGrid');
+            container.innerHTML = '';
+            
+            const startIndex = avatarImages.currentPage * avatarImages.pageSize;
+            const endIndex = Math.min(startIndex + avatarImages.pageSize, avatarImages.discovered.length);
+            
+            preloadCartoonImages(startIndex, avatarImages.pageSize);
+            
+            for (let i = startIndex; i < endIndex; i++) {
+                const filename = avatarImages.discovered[i];
+                const c = document.createElement('canvas');
+                c.width = 120;
+                c.height = 120;
+                c.className = 'avatar-style';
+                c.title = filename;
+                c.dataset.index = i;
+                
+                const ctx = c.getContext('2d');
+                
+                ctx.fillStyle = '#f0f0f0';
+                ctx.fillRect(0, 0, 120, 120);
+                ctx.fillStyle = '#999';
+                ctx.font = '24px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('...', 60, 60);
+                
+                const tryDrawImage = () => {
+                    if (avatarImages.loaded[i]) {
+                        ctx.clearRect(0, 0, 120, 120);
+                        // 使用高质量缩放
+                        ctx.imageSmoothingEnabled = true;
+                        ctx.imageSmoothingQuality = 'high';
+                        ctx.drawImage(avatarImages.loaded[i], 0, 0, 120, 120);
+                    } else {
+                        ctx.fillStyle = '#e0e0e0';
+                        ctx.fillRect(0, 0, 120, 120);
+                        ctx.fillStyle = '#667eea';
+                        ctx.font = 'bold 40px Arial';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText((i + 1), 60, 60);
+                    }
+                };
+                
+                setTimeout(tryDrawImage, 100 + (i - startIndex) * 50);
+                
+                c.onclick = function() {
+                    document.querySelectorAll('.avatar-style').forEach(s => s.classList.remove('selected'));
+                    this.classList.add('selected');
+                    state.avatarStyle = parseInt(this.dataset.index);
+                    state.cartoonImg = avatarImages.loaded[parseInt(this.dataset.index)];
+                    preview();
+                };
+                
+                container.appendChild(c);
+            }
+            
+            // 更新页码显示
+            const pageInfoElement = document.getElementById('pageInfo');
+            const paginationControls = pageInfoElement.parentElement.previousElementSibling;
+            
+            if (avatarImages.totalPages <= 1) {
+                // 不足或等于8个，隐藏翻页按钮
+                paginationControls.style.display = 'none';
+                pageInfoElement.parentElement.style.display = 'none';
+            } else {
+                // 超过8个，显示翻页按钮
+                paginationControls.style.display = 'flex';
+                pageInfoElement.parentElement.style.display = 'block';
+                pageInfoElement.textContent = 
+                    '第 ' + (avatarImages.currentPage + 1) + ' / ' + avatarImages.totalPages + ' 页';
+                
+                // 更新按钮状态
+                document.getElementById('prevPageBtn').disabled = avatarImages.currentPage === 0;
+                document.getElementById('nextPageBtn').disabled = avatarImages.currentPage === avatarImages.totalPages - 1;
+            }
+        }
+        
         function initAvatars() {
-            const container = document.getElementById('avatarStyles');
+            const geoContainer = document.getElementById('geometricAvatars');
+            const cartoonContainer = document.getElementById('cartoonAvatars');
+            
+            // 几何图案头像（8个）
             for (let i = 0; i < 8; i++) {
                 const c = document.createElement('canvas');
-                c.width = 60;
-                c.height = 60;
+                c.width = 120;
+                c.height = 120;
                 c.className = 'avatar-style';
                 if (i === 0) c.classList.add('selected');
                 
                 const ctx = c.getContext('2d');
-                const temp = genAvatar(i * 123, 60);
-                ctx.drawImage(temp, 0, 0, 60, 60);
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
+                const temp = genAvatar(i * 123, 120);
+                ctx.drawImage(temp, 0, 0, 120, 120);
                 
                 c.onclick = function() {
                     document.querySelectorAll('.avatar-style').forEach(s => s.classList.remove('selected'));
@@ -588,8 +1236,12 @@
                     preview();
                 };
                 
-                container.appendChild(c);
+                geoContainer.appendChild(c);
             }
+            
+            // 卡通形象头像（8个）
+            initAvatarList();
+            loadCartoonPage(0);
         }
         
         document.getElementById('fileInput').onchange = function(e) {
@@ -658,8 +1310,21 @@
                 ctx.clip();
                 
                 if (state.avatarMode === 'gen') {
-                    const av = genAvatar(state.avatarStyle * 123, sz);
-                    ctx.drawImage(av, x, y, sz, sz);
+                    if (state.avatarType === 'geometric') {
+                        const av = genAvatar(state.avatarStyle * 123, sz);
+                        ctx.drawImage(av, x, y, sz, sz);
+                    } else {
+                        if (state.cartoonImg) {
+                            ctx.drawImage(state.cartoonImg, x, y, sz, sz);
+                        } else {
+                            const tempCanvas = document.createElement('canvas');
+                            tempCanvas.width = sz;
+                            tempCanvas.height = sz;
+                            const tempCtx = tempCanvas.getContext('2d');
+                            drawCartoon(tempCtx, state.avatarStyle, sz);
+                            ctx.drawImage(tempCanvas, x, y, sz, sz);
+                        }
+                    }
                 } else if (state.uploadedImg) {
                     ctx.drawImage(state.uploadedImg, x, y, sz, sz);
                 }
@@ -715,8 +1380,21 @@
                 ctx.clip();
                 
                 if (state.avatarMode === 'gen') {
-                    const av = genAvatar(state.avatarStyle * 123, sz);
-                    ctx.drawImage(av, x, y, sz, sz);
+                    if (state.avatarType === 'geometric') {
+                        const av = genAvatar(state.avatarStyle * 123, sz);
+                        ctx.drawImage(av, x, y, sz, sz);
+                    } else {
+                        if (state.cartoonImg) {
+                            ctx.drawImage(state.cartoonImg, x, y, sz, sz);
+                        } else {
+                            const tempCanvas = document.createElement('canvas');
+                            tempCanvas.width = sz;
+                            tempCanvas.height = sz;
+                            const tempCtx = tempCanvas.getContext('2d');
+                            drawCartoon(tempCtx, state.avatarStyle, sz);
+                            ctx.drawImage(tempCanvas, x, y, sz, sz);
+                        }
+                    }
                 } else if (state.uploadedImg) {
                     ctx.drawImage(state.uploadedImg, x, y, sz, sz);
                 }
